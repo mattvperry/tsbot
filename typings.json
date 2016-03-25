@@ -1,0 +1,7 @@
+{
+  "ambientDependencies": {
+    "mz": "registry:dt/mz#0.0.0+20160217153523",
+    "node": "registry:dt/node#4.0.0+20160319033040",
+    "yargs": "registry:dt/yargs#0.0.0+20160317120654"
+  }
+}

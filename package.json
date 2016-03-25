@@ -1,0 +1,36 @@
+{
+  "name": "tsbot",
+  "version": "1.0.0",
+  "description": "Typescript port of GitHub's Hubot.",
+  "main": "./dist/index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/mattvperry/tsbot.git"
+  },
+  "keywords": [
+    "hubot",
+    "typescript",
+    "chatbot"
+  ],
+  "author": "Matt Perry",
+  "license": "MIT",
+  "bugs": {
+    "url": "https://github.com/mattvperry/tsbot/issues"
+  },
+  "homepage": "https://github.com/mattvperry/tsbot#readme",
+  "devDependencies": {
+    "gulp": "^3.9.1",
+    "gulp-clean": "^0.3.2",
+    "gulp-sourcemaps": "^1.6.0",
+    "gulp-typescript": "^2.12.1",
+    "gulp-typings": "^1.3.0",
+    "typescript": "^1.8.9"
+  },
+  "dependencies": {
+    "mz": "^2.4.0",
+    "yargs": "^4.3.2"
+  }
+}
