@@ -67,7 +67,7 @@ async function loadOtherScripts(fileName: string, loader: (scripts: string[]) =>
         let data = await fs.readFile(scriptsFile);
         if (data.length > 0) {
             try {
-                await loader(data.toJSON());
+                await loader(JSON.parse(data.toString()));
             } catch (e) {
                 console.error(`Error parsing JSON data from ${fileName}: ${e}`);
                 process.exit(1);
@@ -82,7 +82,7 @@ async function loadScripts(options: CommandLineArgs, robot: Robot): Promise<void
         await robot.loadHubotScripts(loadPath, scripts);
     });
 
-    await loadOtherScripts("external-scripts.json", robot.loadExternalScripts.bind(this));
+    await loadOtherScripts("external-scripts.json", robot.loadExternalScripts.bind(robot));
 
     let scripts = options.require.concat([path.resolve(".", "scripts"), path.resolve(".", "src", "scripts")]);
     for (let scriptPath of scripts) {
