@@ -18,9 +18,9 @@ export default class Response {
      * Initializes a new instance of the <<Response>> class.
      * @param _robot A <<Robot>> instance.
      * @param _message A <<Message>> instance.
-     * @param _match A match object from the successful regex match.
+     * @param match A match object from the successful regex match.
      */
-    constructor(private _robot: Robot, public message: Message, private _match?: RegExpMatchArray) {
+    constructor(private _robot: Robot, public message: Message, public match?: RegExpMatchArray) {
         this._envelope = this.message.toEnvelope();
     }
 
@@ -122,7 +122,7 @@ export default class Response {
      * @param options Optional options to pass on to the client
      * @returns a <<ScopedClient>> instance.
      */
-    public http(url: string, options: scoped.Options): scoped.ScopedClient {
+    public http(url: string, options?: scoped.Options): scoped.ScopedClient {
         return this._robot.http(url, options);
     }
 }

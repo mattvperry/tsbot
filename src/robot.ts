@@ -424,7 +424,7 @@ export default class Robot extends EventEmitter {
      * @param options Optional options to pass on to the client
      * @returns a <<ScopedClient>> instance.
      */
-    public http(url: string, options: scoped.Options): scoped.ScopedClient {
+    public http(url: string, options?: scoped.Options): scoped.ScopedClient {
         return scoped.create(url, Object.assign({}, this.globalHttpOptions, options))
             .header("User-Agent", `tsbot`);
     }
