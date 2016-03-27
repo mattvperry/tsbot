@@ -32,8 +32,8 @@ node_modules
 # Optional REPL history
 .node_repl_history
 
-# Source maps
+# Build collateral
+dist
+definitions
 maps
-
-# Typings
 typings

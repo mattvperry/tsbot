@@ -1,7 +1,18 @@
 {
   "ambientDependencies": {
+    "body-parser": "registry:dt/body-parser#0.0.0+20160317120654",
+    "express": "registry:dt/express#4.0.0+20160317120654",
+    "express-serve-static-core": "registry:dt/express-serve-static-core#0.0.0+20160322035842",
+    "loglevel": "registry:dt/loglevel#1.4.0+20160316155526",
+    "mime": "registry:dt/mime#0.0.0+20160316155526",
+    "multer": "registry:dt/multer#0.0.0+20160317120654",
     "mz": "registry:dt/mz#0.0.0+20160217153523",
     "node": "registry:dt/node#4.0.0+20160319033040",
+    "scoped-http-client": "github:mattvperry/typed-scoped-http-client#9ebe051",
+    "serve-static": "registry:dt/serve-static#0.0.0+20160317120654",
     "yargs": "registry:dt/yargs#0.0.0+20160317120654"
+  },
+  "dependencies": {
+    "basic-auth-connect": "registry:npm/basic-auth-connect#1.0.0+20160226233223"
   }
 }

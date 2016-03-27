@@ -12,7 +12,10 @@
 			"preLaunchTask": null,
 			"runtimeExecutable": null,
 			"runtimeArgs": [
-				"--nolazy"
+				"--nolazy",
+                "--harmony_default_parameters",
+                "--harmony_rest_parameters",
+                "--harmony_destructuring"
 			],
 			"env": {
 				"NODE_ENV": "development"

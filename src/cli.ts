@@ -4,6 +4,7 @@ import * as argv from "yargs";
 import * as fs from "mz/fs";
 import * as path from "path";
 import { loadBot } from "./index";
+import Robot from "./robot";
 
 interface CommandLineArgs {
     adapter: string;
@@ -60,13 +61,13 @@ function parseArgs(): CommandLineArgs {
     .argv;
 }
 
-async function loadOtherScripts(fileName: string, loader: (scripts: string[]) => void): Promise<void> {
+async function loadOtherScripts(fileName: string, loader: (scripts: string[]) => Promise<void>): Promise<void> {
     let scriptsFile = path.resolve(".", fileName);
     if (await fs.exists(scriptsFile)) {
         let data = await fs.readFile(scriptsFile);
         if (data.length > 0) {
             try {
-                loader(data.toJSON());
+                await loader(data.toJSON());
             } catch (e) {
                 console.error(`Error parsing JSON data from ${fileName}: ${e}`);
                 process.exit(1);
@@ -75,18 +76,18 @@ async function loadOtherScripts(fileName: string, loader: (scripts: string[]) =>
     }
 }
 
-async function loadScripts(options: any, robot: any): Promise<void> {
-    await loadOtherScripts("hubot-scripts.json", (scripts) => {
+async function loadScripts(options: CommandLineArgs, robot: Robot): Promise<void> {
+    await loadOtherScripts("hubot-scripts.json", async (scripts) => {
         let loadPath = path.resolve("node_modules", "hubot-scripts", "src", "scripts");
-        robot.loadHubotScripts(loadPath, scripts);
+        await robot.loadHubotScripts(loadPath, scripts);
     });
-    
+
     await loadOtherScripts("external-scripts.json", robot.loadExternalScripts.bind(this));
-    
-    let scripts = options.scripts.concat([path.resolve(".", "scripts"), path.resolve(".", "src", "scripts")]);
+
+    let scripts = options.require.concat([path.resolve(".", "scripts"), path.resolve(".", "src", "scripts")]);
     for (let scriptPath of scripts) {
         let scriptsPath = scriptPath[0] === "/" ? scriptPath : path.resolve(".", scriptPath);
-        robot.load(scriptsPath);
+        await robot.load(scriptsPath);
     }
 }
 
@@ -96,7 +97,7 @@ let robot = loadBot(undefined, options.adapter, !options.disableHttpd, options.n
 if (options.configCheck) {
     loadScripts(options, robot)
         .then(() => console.log("OK"))
-        .then(() => process.exit(0));    
+        .then(() => process.exit(0));
 } else {
     robot.adapter.once("connected", () => loadScripts(options, robot));
     robot.run();

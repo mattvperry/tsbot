@@ -1,10 +1,12 @@
 "use strict";
 
+const path = require("path");
 const gulp = require("gulp");
 const clean = require("gulp-clean");
 const typings = require("gulp-typings");
 const tsc = require("gulp-typescript");
 const sourcemaps = require("gulp-sourcemaps");
+const merge = require("merge2");
 
 gulp.task("default", ["build"]);
 gulp.task("build", ["tsc"]);
@@ -23,12 +25,20 @@ gulp.task('typings', () => {
 });
 
 gulp.task('tsc', ['typings'], () => {
-    return gulp
+    let tsResult = gulp
         .src(["src/**/*.ts"])
         .pipe(sourcemaps.init())
         .pipe(tsc(tsc.createProject("tsconfig.json")))
-        .pipe(sourcemaps.write("../maps", { sourceRoot: "../src" }))
-        .pipe(gulp.dest("dist")); 
+
+    return merge([
+        tsResult.dts.pipe(gulp.dest("definitions")),
+        tsResult.js.pipe(sourcemaps.write("../maps", {
+            sourceRoot: (file) => {
+                return path.relative(file.relative, "./src");
+            } 
+        }))
+        .pipe(gulp.dest("dist"))
+    ]);
 });
 
 gulp.task("watch", () => {

@@ -1,6 +1,15 @@
 import User from "./user";
 
 /**
+ * Message envelope
+ */
+export interface Envelope {
+    message?: Message;
+    room?: string;
+    user?: User;
+}
+
+/**
  * Represents an incoming message from the chat.
  */
 export class Message {
@@ -8,7 +17,7 @@ export class Message {
      * Room where message came from
      */
     public room: string;
-    
+
     /**
      * Initializes a new instance of the <<Message>> class.
      * @param user A <<User>> instance that sent the message
@@ -17,12 +26,24 @@ export class Message {
     constructor(public user: User, public done: boolean = false) {
         this.room = user["room"];
     }
-    
+
     /**
      * Indicates that no other <<Listener>> should be called on this object.
      */
     public finish(): void {
         this.done = true;
+    }
+
+    /**
+     * Place this message in an envelope
+     * @returns An <<Envelope>> containing this message.
+     */
+    public toEnvelope(): Envelope {
+        return {
+            room: this.room,
+            user: this.user,
+            message: this
+        };
     }
 }
 
@@ -39,7 +60,7 @@ export class TextMessage extends Message {
     constructor(public user: User, public text: string, public id: string) {
         super(user);
     }
-    
+
     /**
      * Determines if the message matches the given regex.
      * @param regex A regex to check
@@ -48,7 +69,7 @@ export class TextMessage extends Message {
     public match(regex: string|RegExp): RegExpMatchArray {
         return this.text.match(<any>regex);
     }
-    
+
     /**
      * String representation of a <<TextMessage>>
      * @returns The message text

@@ -6,7 +6,7 @@ export default class User {
      * The user's name
      */
     public name: string;
-    
+
     /**
      * Initializes a new instance of the <<User>> class.
      * @param _id A unique ID for the user.
