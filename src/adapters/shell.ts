@@ -34,18 +34,18 @@ class Shell extends Adapter {
 
     private _buildCli(): void {
         this._cli = readline.createInterface(process.stdin, process.stdout);
-        this._cli.setPrompt(`${this._robot.name}> `);
+        this._cli.setPrompt(`${this.robot.name}> `);
         this._cli.prompt(true);
 
         this._cli.on("line", (line: string) => {
             let userId = "1";
             let userName = "Shell";
-            let user = this._robot.brain.userForId(userId, { name: userName, room: "Shell" });
+            let user = this.robot.brain.userForId(userId, { name: userName, room: "Shell" });
             this.receive(new TextMessage(user, line, "messageId"));
             this._cli.prompt(true);
         });
 
-        this._cli.on("close", () => this._robot.shutdown());
+        this._cli.on("close", () => this.robot.shutdown());
     }
 }
 
