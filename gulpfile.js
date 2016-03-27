@@ -14,7 +14,7 @@ gulp.task("rebuild", ["clean", "build"])
 
 gulp.task("clean", () => {
     return gulp
-        .src(['typings', 'maps', 'dist'])
+        .src(['typings', 'dist'])
         .pipe(clean()); 
 });
 
@@ -31,14 +31,14 @@ gulp.task('tsc', ['typings'], () => {
         .pipe(tsc(tsc.createProject("tsconfig.json")))
 
     return merge([
-        tsResult.dts.pipe(gulp.dest("definitions")),
-        tsResult.js.pipe(sourcemaps.write("../maps", {
+        tsResult.dts,
+        tsResult.js.pipe(sourcemaps.write({
             sourceRoot: (file) => {
                 return path.relative(file.relative, "./src");
             } 
         }))
-        .pipe(gulp.dest("dist"))
-    ]);
+    ])
+    .pipe(gulp.dest("dist"));
 });
 
 gulp.task("watch", () => {
