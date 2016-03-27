@@ -1,9 +1,12 @@
 {
   "name": "tsbot",
-  "version": "1.0.5",
+  "version": "1.0.6",
   "description": "Typescript port of GitHub's Hubot.",
   "main": "./dist/index.js",
   "typings": "./dist/index.d.ts",
+  "bin": {
+    "tsbot": "./bin/tsbot"    
+  },
   "files": [
     "dist",
     "src",
