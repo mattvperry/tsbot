@@ -13,7 +13,7 @@ export abstract class Adapter extends EventEmitter {
      * Initializes a new instance of the <<Adapter>> class.
      * @param robot A robot instance
      */
-    constructor(protected _robot: Robot) {
+    constructor(protected robot: Robot) {
         super();
     }
 
@@ -70,6 +70,6 @@ export abstract class Adapter extends EventEmitter {
      * Dispatch a received message to the robot.
      */
     public receive(message: Message): Promise<void> {
-        return this._robot.receive(message);
+        return this.robot.receive(message);
     }
 }

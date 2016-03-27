@@ -4,7 +4,7 @@ import Robot from "./robot";
 import { Adapter } from "./adapter";
 import Response from "./response";
 import { Listener, TextListener } from "./listener";
-import { Message, TextMessage, EnterMessage, LeaveMessage, TopicMessage, CatchAllMessage } from "./message";
+import { Message, TextMessage, EnterMessage, LeaveMessage, TopicMessage, CatchAllMessage, Envelope } from "./message";
 
 export {
     User,
@@ -19,7 +19,8 @@ export {
     EnterMessage,
     LeaveMessage,
     TopicMessage,
-    CatchAllMessage
+    CatchAllMessage,
+    Envelope
 };
 
 export function loadBot(adapterPath: string, adapterName: string, enableHttpd: boolean, botName: string, botAlias: string): Robot {
