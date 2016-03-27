@@ -1,4 +1,7 @@
 {
+  "name": "tsbot",
+  "main": "definitions/index.d.ts",
+  "files": ["definitions"],
   "ambientDependencies": {
     "body-parser": "registry:dt/body-parser#0.0.0+20160317120654",
     "express": "registry:dt/express#4.0.0+20160317120654",
