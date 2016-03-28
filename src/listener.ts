@@ -1,11 +1,15 @@
 import { inspect } from "util";
 import { Message, TextMessage } from "./message";
-import Middleware, { Context, CompleteFunc } from "./middleware";
+import Middleware, { Context } from "./middleware";
 import Robot from "./robot";
 import Response from "./response";
 
 export type Matcher = (message: Message) => any;
 export type ListenerCallback = (response: Response) => void;
+
+export interface ListenerContext extends Context {
+    listener: Listener;
+}
 
 /**
  * Listeners receive every message from the chat source and decide
@@ -61,9 +65,9 @@ export class Listener {
      * @param message A <<Message>> instance
      * @param middleware Optional <<Middleware>> object to execute before the <<Listener>> callback
      */
-    public async call(message: Message, middleware?: Middleware): Promise<boolean> {
+    public async call(message: Message, middleware?: Middleware<ListenerContext>): Promise<boolean> {
         if (!middleware) {
-            middleware = new Middleware(this._robot);
+            middleware = new Middleware<ListenerContext>(this._robot);
         }
 
         let match = this._matcher(message);

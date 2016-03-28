@@ -13,8 +13,8 @@ import { EventEmitter } from "events";
 import { Adapter } from "./adapter";
 import Brain from "./brain";
 import Middleware, { Context, MiddlewareFunc } from "./middleware";
-import Response from "./response";
-import { TextListener, Listener, Matcher, ListenerCallback } from "./listener";
+import Response, { ResponseContext } from "./response";
+import { TextListener, Listener, Matcher, ListenerCallback, ListenerContext } from "./listener";
 import { Envelope, Message, EnterMessage, LeaveMessage, TopicMessage, CatchAllMessage } from "./message";
 
 let DOCUMENTATION_SECTIONS = [
@@ -31,9 +31,9 @@ let DOCUMENTATION_SECTIONS = [
 ];
 
 export interface RobotMiddleware {
-    listener: Middleware;
-    response: Middleware;
-    receive: Middleware;
+    listener: Middleware<ListenerContext>;
+    response: Middleware<ResponseContext>;
+    receive: Middleware<Context>;
 }
 
 /**
@@ -269,7 +269,7 @@ export default class Robot extends EventEmitter {
      *  the "done" function with no arguments. Middleware may wrap the "done" function
      *  in order to execute logic after the final callback has been executed.
      */
-    public listenerMiddleware(middleware: MiddlewareFunc): void {
+    public listenerMiddleware(middleware: MiddlewareFunc<ListenerContext>): void {
         this.middleware.listener.register(middleware);
     }
 
@@ -283,7 +283,7 @@ export default class Robot extends EventEmitter {
      *  the "done" function with no arguments. Middleware may wrap the "done" function
      *  in order to execute logic after the final callback has been executed.
      */
-    public responseMiddleware(middleware: MiddlewareFunc): void {
+    public responseMiddleware(middleware: MiddlewareFunc<ResponseContext>): void {
         this.middleware.response.register(middleware);
     }
 
@@ -296,7 +296,7 @@ export default class Robot extends EventEmitter {
      *  the "done" function with no arguments. Middleware may wrap the "done" function
      *  in order to execute logic after the final callback has been executed.
      */
-    public receiveMiddleware(middleware: MiddlewareFunc): void {
+    public receiveMiddleware(middleware: MiddlewareFunc<Context>): void {
         this.middleware.receive.register(middleware);
     }
 

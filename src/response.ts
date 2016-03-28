@@ -3,6 +3,12 @@ import Robot from "./robot";
 import { Context } from "./middleware";
 import { Message, Envelope } from "./message";
 
+export interface ResponseContext extends Context {
+    strings: string[];
+    method: string;
+    plaintext: boolean;    
+}
+
 /**
  * Responses are sent to matching listeners. Message know about the
  * content and user that made the original message, and how to reply
@@ -29,8 +35,8 @@ export default class Response {
      * @param strings One or more strings to be posted. The order of these strings
      *  should be kept intact.
      */
-    public send(...strings: string[]): void {
-        this._runWithMiddleware("send", { plaintext: true }, ...strings);
+    public send(...strings: string[]): Promise<void> {
+        return this._runWithMiddleware("send", { plaintext: true }, ...strings);
     }
 
     /**
@@ -38,8 +44,8 @@ export default class Response {
      * @param strings One or more strings to be posted. The order of these strings
      *  should be kept intact.
      */
-    public emote(...strings: string[]): void {
-        this._runWithMiddleware("send", { plaintext: true }, ...strings);
+    public emote(...strings: string[]): Promise<void> {
+        return this._runWithMiddleware("send", { plaintext: true }, ...strings);
     }
 
     /**
@@ -47,8 +53,8 @@ export default class Response {
      * @param strings One or more strings to be posted. The order of these strings
      *  should be kept intact.
      */
-    public reply(...strings: string[]): void {
-        this._runWithMiddleware("send", { plaintext: true }, ...strings);
+    public reply(...strings: string[]): Promise<void> {
+        return this._runWithMiddleware("send", { plaintext: true }, ...strings);
     }
 
     /**
@@ -56,8 +62,8 @@ export default class Response {
      * @param strings One or more strings to set as the topic of the
      *  room the bot is in.
      */
-    public topic(...strings: string[]): void {
-        this._runWithMiddleware("send", { plaintext: true }, ...strings);
+    public topic(...strings: string[]): Promise<void> {
+        return this._runWithMiddleware("send", { plaintext: true }, ...strings);
     }
 
     /**
@@ -65,8 +71,8 @@ export default class Response {
      * @param strings One or more strings to be posted as sounds to play. The
      *  order of these strings should be kept intact.
      */
-    public play(...strings: string[]): void {
-        this._runWithMiddleware("send", { plaintext: true }, ...strings);
+    public play(...strings: string[]): Promise<void> {
+        return this._runWithMiddleware("send", { plaintext: true }, ...strings);
     }
 
     /**
@@ -74,8 +80,8 @@ export default class Response {
      * @param strings One or more strings to be posted. The order of these strings
      *  should be kept intact.
      */
-    public locked(...strings: string[]): void {
-        this._runWithMiddleware("send", { plaintext: true }, ...strings);
+    public locked(...strings: string[]): Promise<void> {
+        return this._runWithMiddleware("send", { plaintext: true }, ...strings);
     }
 
     /**
@@ -95,25 +101,6 @@ export default class Response {
     }
 
     /**
-     * Call with a m ethod for the given strings using response
-     * middleware.
-     */
-    private async _runWithMiddleware(
-        methodName: string,
-        opts: { plaintext?: boolean },
-        ...strings: string[]): Promise<void> {
-        let context: Context = {
-            response: this,
-            strings: strings.slice(0),
-            method: methodName,
-            plaintext: opts.plaintext || false
-        };
-
-        let result = await this._robot.middleware.response.execute(context);
-        this._robot.adapter[context.method](this._envelope, ...result.strings);
-    }
-
-    /**
      * Creates a scoped http client with chainable methods for
      * modifying the request. This doesn't actually make a request
      * though. Once your request is assembled, you can call `get()`/`post()`
@@ -124,5 +111,24 @@ export default class Response {
      */
     public http(url: string, options?: scoped.Options): scoped.ScopedClient {
         return this._robot.http(url, options);
+    }
+
+    /**
+     * Call with a m ethod for the given strings using response
+     * middleware.
+     */
+    private async _runWithMiddleware(
+        methodName: string,
+        opts: { plaintext?: boolean },
+        ...strings: string[]): Promise<void> {
+        let context: ResponseContext = {
+            response: this,
+            strings: strings.slice(0),
+            method: methodName,
+            plaintext: opts.plaintext || false
+        };
+
+        let result = await this._robot.middleware.response.execute(context);
+        this._robot.adapter[context.method](this._envelope, ...result.strings);
     }
 }

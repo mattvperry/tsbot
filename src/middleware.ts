@@ -2,25 +2,20 @@ import Robot from "./robot";
 import Response from "./response";
 import { Listener } from "./listener";
 
-export type MiddlewareFunc = (context: Context, next: (done: Function) => void, done: Function) => void;
-export type CompleteFunc = (context: Context, done: Function) => void;
+export type MiddlewareFunc<T extends Context> = (context: T, next: (done: Function) => void, done: Function) => void;
 
 export interface Context {
     response: Response;
-    listener?: Listener;
-    strings?: string[];
-    method?: string;
-    plaintext?: boolean;
 }
 
 /**
  * Middleware handler
  */
-export default class Middleware {
+export default class Middleware<T extends Context> {
     /**
      * Middleware stack
      */
-    private _stack: MiddlewareFunc[] = [];
+    private _stack: MiddlewareFunc<T>[] = [];
 
     /**
      * Initializes a new instance of the <<Middleware>> class.
@@ -38,7 +33,7 @@ export default class Middleware {
      * @param context context object that is passed through the middleware stack.
      *  When handling errors, this is assumed to have a "response" property.
      */
-    public async execute(context: Context): Promise<Context> {
+    public async execute(context: T): Promise<T> {
         let done: Function = () => {};
         try {
             for (let mw of this._stack) {
@@ -47,12 +42,13 @@ export default class Middleware {
                     break;
                 }
             }
-        } catch (e) {
-            done();
-            throw e;
-        }
 
-        return Promise.resolve(context);
+            return Promise.resolve(context);
+        } catch (e) {
+            return Promise.reject<T>(e);
+        } finally {
+            done();
+        }
     }
 
     /**
@@ -64,7 +60,7 @@ export default class Middleware {
      *  the "done" function with no arguments. Middleware may wrap the "done" function
      *  in order to execute logic after the final callback has been executed.
      */
-    public register(middleware: MiddlewareFunc): void {
+    public register(middleware: MiddlewareFunc<T>): void {
         if (middleware.length !== 3) {
             throw new Error(
                 `Incorrect number of arguments for middleware callback (expected 3, got ${middleware.length})`);
@@ -76,22 +72,20 @@ export default class Middleware {
      * Turn a middleware function into a promise.
      */
     private _middlewareExecAsync(
-        middleware: MiddlewareFunc,
-        context: Context,
+        middleware: MiddlewareFunc<T>,
+        context: T,
         done: Function): Promise<Function> {
         return new Promise<Function>((resolve, reject) => {
-            let nextCalled = false;
-            let nextFunc = (newDoneFunc: Function = done) => {
-                nextCalled = true;
-                resolve(newDoneFunc);
-            };
             try {
-                middleware.call(undefined, context, nextFunc, done);
-                // If "next" wasn't called, assume "done" was called. This
-                // is a valid assumption if the middleware is well formed.
-                if (!nextCalled) {
-                    resolve(null);
-                }
+                middleware.call(undefined, context,
+                    (newDoneFunc: Function = done) => {
+                        resolve(newDoneFunc);
+                    }, 
+                    () => {
+                        resolve(null);
+                        done();
+                    }
+                );
             } catch (e) {
                 // Maintaining the existing error interface (Response object)
                 this._robot.emit("error", e, context.response);
