@@ -17,6 +17,19 @@ import Response from "./response";
 import { TextListener, Listener, Matcher, ListenerCallback } from "./listener";
 import { Envelope, Message, EnterMessage, LeaveMessage, TopicMessage, CatchAllMessage } from "./message";
 
+let DOCUMENTATION_SECTIONS = [
+    "description",
+    "dependencies",
+    "configuration",
+    "commands",
+    "notes",
+    "author",
+    "authors",
+    "examples",
+    "tags",
+    "urls"
+];
+
 export interface RobotMiddleware {
     listener: Middleware;
     response: Middleware;
@@ -57,6 +70,11 @@ export default class Robot extends EventEmitter {
      * Global scoped http client options
      */
     public globalHttpOptions: scoped.Options;
+
+    /**
+     * List of commands
+     */
+    private _commands: string[];
 
     /**
      * HTTP Server
@@ -108,6 +126,7 @@ export default class Robot extends EventEmitter {
         }
         this._adapterPath = this._adapterPath ? this._adapterPath : path.join(__dirname, "adapters");
         this._listeners = [];
+        this._commands = [];
         this._errorHandlers = [];
 
         if (httpd) {
@@ -416,6 +435,14 @@ export default class Robot extends EventEmitter {
     }
 
     /**
+     * Help commands for running scripts.
+     * @returns An Array of help commands for running scripts.
+     */
+    public helpCommands(): string[] {
+        return this._commands.sort();
+    }
+
+    /**
      * Creates a scoped http client with chainable methods for
      * modifying the request. This doesn't actually make a request
      * though. Once your request is assembled, you can call `get()`/`post()`
@@ -505,7 +532,28 @@ export default class Robot extends EventEmitter {
      */
     private async _parseHelp(filePath: string): Promise<void> {
         this.logger.debug(`Parsing help for ${filePath}`);
-        // TODO: Finish parseHelp
+        let lines = (await fs.readFile(filePath, "utf-8")).split("\n");
+        let firstNonComment = lines
+            .findIndex((line) => line[0] !== "#" && line.substr(0, 2) !== "//");
+        let docComments = lines
+            .slice(0, firstNonComment)
+            .map((line) => line.replace(/^(#|\/\/)/, "").trim())
+            .filter((line) => line.length > 0 && line.toLowerCase() !== "none");
+        
+        let scriptDoc = {};
+        let currentSection: string = null;
+        for (let doc of docComments) {
+            let nextSection = doc.toLowerCase().replace(":", "");
+            if (DOCUMENTATION_SECTIONS.indexOf(nextSection) !== -1) {
+                currentSection = nextSection;
+                scriptDoc[currentSection] = [];
+            } else if (currentSection !== null) {
+                scriptDoc[currentSection].push(doc);
+                if (currentSection === "commands") {
+                    this._commands.push(doc);
+                }
+            }
+        }
     }
 
     /**
