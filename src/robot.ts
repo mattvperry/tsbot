@@ -539,7 +539,7 @@ export default class Robot extends EventEmitter {
             .slice(0, firstNonComment)
             .map((line) => line.replace(/^(#|\/\/)/, "").trim())
             .filter((line) => line.length > 0 && line.toLowerCase() !== "none");
-        
+
         let scriptDoc = {};
         let currentSection: string = null;
         for (let doc of docComments) {
