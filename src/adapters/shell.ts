@@ -1,7 +1,7 @@
 import * as readline from "readline";
-import Robot from "../robot";
-import { Adapter } from "../adapter";
-import { Envelope, TextMessage } from "../message";
+import Robot from "../core/robot";
+import { Adapter } from "../core/adapter";
+import { Envelope, TextMessage } from "../core/message";
 
 class Shell extends Adapter {
     private _cli: readline.ReadLine;

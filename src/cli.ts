@@ -3,14 +3,10 @@
 import * as argv from "yargs";
 import * as fs from "mz/fs";
 import * as path from "path";
-import { loadBot } from "./index";
-import Robot from "./robot";
+import Registrar from "./registrar";
+import Robot, { Configuration } from "./core/robot";
 
-interface CommandLineArgs {
-    adapter: string;
-    disableHttpd: boolean;
-    alias: string;
-    name: string;
+interface CommandLineArgs extends Configuration {
     require: string[];
     configCheck: boolean;
 }
@@ -92,7 +88,8 @@ async function loadScripts(options: CommandLineArgs, robot: Robot): Promise<void
 }
 
 let options = parseArgs();
-let robot = loadBot(undefined, options.adapter, !options.disableHttpd, options.name, options.alias);
+let kernel = Registrar.register(options);
+let robot = kernel.get<Robot>("Robot");
 
 if (options.configCheck) {
     loadScripts(options, robot)

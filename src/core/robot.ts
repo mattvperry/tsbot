@@ -1,20 +1,21 @@
-/// <reference path="..\typings\main.d.ts" />
+/// <reference path="..\..\typings\main.d.ts" />
 
 import * as fs from "mz/fs";
 import * as path from "path";
-import * as log from "loglevel";
 import * as express from "express";
 import * as bodyParser from "body-parser";
 import * as multer from "multer";
 import * as basicAuth from "basic-auth-connect";
 import * as scoped from "scoped-http-client";
+import { inject, IFactory } from "inversify";
 import { Server } from "http";
-import { EventEmitter } from "events";
 import { Adapter } from "./adapter";
+import EventBus from "./eventBus";
 import Brain from "./brain";
 import Middleware, { Context, MiddlewareFunc } from "./middleware";
 import Response, { ResponseContext } from "./response";
-import { TextListener, Listener, Matcher, ListenerCallback, ListenerContext } from "./listener";
+import Listener, { ListenerContext, Matcher, ListenerCallback } from "./listener";
+import ListenerBuilder from "./listenerBuilder";
 import { Envelope, Message, EnterMessage, LeaveMessage, TopicMessage, CatchAllMessage } from "./message";
 
 let DOCUMENTATION_SECTIONS = [
@@ -37,14 +38,31 @@ export interface RobotMiddleware {
 }
 
 /**
+ * Interface for initial configuration of a robot
+ */
+export interface Configuration {
+    adapterPath?: string;
+    adapter: string;
+    disableHttpd: boolean;
+    alias: string;
+    name: string;
+}
+
+/**
  * Robots receive message from a chat source and dispatch them to
  * matching listeners
  */
-export default class Robot extends EventEmitter {
+@inject("Configuration", "Middleware", "Brain", "Log", "EventBus", "ListenerBuilder")
+export default class Robot {
     /**
-     * Robot brain instance
+     * Robot's name
      */
-    public brain: Brain;
+    public name: string;
+
+    /**
+     * Robot's alias
+     */
+    public alias: string;
 
     /**
      * Adapter instance
@@ -52,14 +70,14 @@ export default class Robot extends EventEmitter {
     public adapter: Adapter;
 
     /**
+     * Adapter instance name
+     */
+    public adapterName: string;
+
+    /**
      * Robot middlewares
      */
     public middleware: RobotMiddleware;
-
-    /**
-     * Logger instance
-     */
-    public logger: Log;
 
     /**
      * HTTP Router
@@ -69,12 +87,12 @@ export default class Robot extends EventEmitter {
     /**
      * Global scoped http client options
      */
-    public globalHttpOptions: scoped.Options;
+    public globalHttpOptions: scoped.Options = {};
 
     /**
-     * List of commands
+     * Path to adapter
      */
-    private _commands: string[];
+    private _adapterPath: string;
 
     /**
      * HTTP Server
@@ -82,63 +100,58 @@ export default class Robot extends EventEmitter {
     private _server: Server;
 
     /**
-     * Robot listeners
-     */
-    private _listeners: Listener[];
-
-    /**
-     * Error handlers
-     */
-    private _errorHandlers: Function[];
-
-    /**
      * Uncaught exception handler
      */
     private _onUncaughtException: Function;
 
     /**
+     * Robot listeners
+     */
+    private _listeners: Listener[] = [];
+
+    /**
+     * List of commands
+     */
+    private _commands: string[] = [];
+
+    /**
+     * Error handlers
+     */
+    private _errorHandlers: Function[] = [];
+
+    /**
      * Initializes a new instance of the <<Robot>> class.
-     * @param _adapterPath  Path to the adapter script
-     * @param adapterName   Name of the adapter to use
-     * @param httpd         Flag for enabling the HTTP server
-     * @param name          Name of this robot instance
-     * @param alias         Alias for this robot instance
      */
     constructor(
-        private _adapterPath: string,
-        public adapterName: string,
-        httpd: boolean,
-        public name: string = "tsbot",
-        public alias: string = null) {
-        super();
+        config: Configuration,
+        middlewareFac: IFactory<Middleware<Context>>,
+        public brain: Brain,
+        public logger: Log,
+        private _eventBus: EventBus,
+        private _listenerBuilder: IFactory<ListenerBuilder>) {
+        // Configuration slurp
+        this.adapterName = config.adapter;
+        this.name = config.name || "tsbot";
+        this.alias = config.alias || null;
+        this._adapterPath = config.adapterPath || path.join("..", "adapters");
 
-        this.logger = log;
-        let logLevel: string = process.env.HUBOT_LOG_LEVEL || process.env.TSBOT_LOG_LEVEL || "info";
-        this.logger.setLevel(logLevel);
-
-        this.brain = new Brain(this);
-        this.adapter = null;
-        this.globalHttpOptions = {};
         this.middleware = {
-            listener: new Middleware(this),
-            response: new Middleware(this),
-            receive: new Middleware(this)
+            listener: middlewareFac(),
+            response: middlewareFac(),
+            receive: middlewareFac()
         }
-        this._adapterPath = this._adapterPath ? this._adapterPath : path.join(__dirname, "adapters");
-        this._listeners = [];
-        this._commands = [];
-        this._errorHandlers = [];
 
-        if (httpd) {
-            this._setupExpress();
-        } else {
+        if (config.disableHttpd) {
             this._setupNullRouter();
+        } else {
+            this._setupExpress();
         }
 
         this._loadAdapter(this.adapterName);
 
+        this.on("running", () => this.brain.resetSaveInterval(5));
         this.on("error", this._invokeErrorHandlers.bind(this));
-        this._onUncaughtException = (err: any) => this.emit("error", err);
+        this._onUncaughtException = (err) => this.emit("error", err);
         process.on("uncaughtException", this._onUncaughtException);
     }
 
@@ -154,7 +167,11 @@ export default class Robot extends EventEmitter {
     public listen(matcher: Matcher, callback: ListenerCallback): void;
     public listen(matcher: Matcher, options: any, callback: ListenerCallback): void;
     public listen(matcher: Matcher, options: any, callback?: ListenerCallback): void {
-        this._listeners.push(new Listener(this, matcher, options, callback));
+        this._listeners.push(this._listenerBuilder()
+            .withMatcher(matcher)
+            .withOptions(options)
+            .withCallback(callback)
+            .build());
     }
 
     /**
@@ -170,7 +187,11 @@ export default class Robot extends EventEmitter {
     public hear(regex: RegExp, callback: ListenerCallback): void;
     public hear(regex: RegExp, options: any, callback: ListenerCallback): void
     public hear(regex: RegExp, options: any, callback?: ListenerCallback): void {
-        this._listeners.push(new TextListener(this, regex, options, callback));
+        this._listeners.push(this._listenerBuilder()
+            .withRegex(regex)
+            .withOptions(options)
+            .withCallback(callback)
+            .build());
     }
 
     /**
@@ -309,7 +330,7 @@ export default class Robot extends EventEmitter {
      */
     public async receive(message: Message): Promise<void> {
         let context = await this.middleware.receive.execute({
-            response: new Response(this, message)
+            response: new Response(message)
         });
         return this._processListeners(context);
     }
@@ -440,6 +461,26 @@ export default class Robot extends EventEmitter {
      */
     public helpCommands(): string[] {
         return this._commands.sort();
+    }
+
+    /**
+     * Wrapper around the event bus for ease of use.
+     * @param event Event name to handle
+     * @param listener Callback to execute on event
+     * @returns this
+     */
+    public on(event: string, listener: Function): this {
+        this._eventBus.on(event, listener);
+        return this;
+    }
+
+    /**
+     * Wrapper around the event bus for ease of use.
+     * @param event Event to emit
+     * @param args Variadic args to pass to event handler.
+     */
+    public emit(event: string, ...args: any[]): void {
+        this._eventBus.emit(event, ...args);
     }
 
     /**

@@ -1,10 +1,11 @@
-import User from "./user";
-import Brain from "./brain";
-import Robot from "./robot";
-import { Adapter } from "./adapter";
-import Response from "./response";
-import { Listener, TextListener } from "./listener";
-import { Message, TextMessage, EnterMessage, LeaveMessage, TopicMessage, CatchAllMessage, Envelope } from "./message";
+import Registrar from "./registrar";
+import User from "./core/user";
+import Brain from "./core/brain";
+import Robot from "./core/robot";
+import { Adapter } from "./core/adapter";
+import Response from "./core/response";
+import ListenerBuilder from "./core/listenerBuilder";
+import { Message, TextMessage, EnterMessage, LeaveMessage, TopicMessage, CatchAllMessage, Envelope } from "./core/message";
 
 export {
     User,
@@ -12,8 +13,7 @@ export {
     Robot,
     Adapter,
     Response,
-    Listener,
-    TextListener,
+    ListenerBuilder,
     Message,
     TextMessage,
     EnterMessage,
@@ -24,5 +24,12 @@ export {
 };
 
 export function loadBot(adapterPath: string, adapterName: string, enableHttpd: boolean, botName: string, botAlias: string): Robot {
-    return new Robot(adapterPath, adapterName, enableHttpd, botName, botAlias);
+    let kernel = Registrar.register({
+        adapterPath: adapterPath,
+        adapter: adapterName,
+        disableHttpd: !enableHttpd,
+        name: botName,
+        alias: botAlias
+    });
+    return kernel.get<Robot>("Robot");
 }

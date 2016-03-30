@@ -3,6 +3,7 @@
     "body-parser": "registry:dt/body-parser#0.0.0+20160317120654",
     "express": "registry:dt/express#4.0.0+20160317120654",
     "express-serve-static-core": "registry:dt/express-serve-static-core#0.0.0+20160322035842",
+    "inversify": "registry:dt/inversify#2.0.0-alpha.3+20160316155526",
     "loglevel": "registry:dt/loglevel#1.4.0+20160316155526",
     "mime": "registry:dt/mime#0.0.0+20160316155526",
     "multer": "registry:dt/multer#0.0.0+20160317120654",

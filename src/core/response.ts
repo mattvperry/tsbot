@@ -6,7 +6,7 @@ import { Message, Envelope } from "./message";
 export interface ResponseContext extends Context {
     strings: string[];
     method: string;
-    plaintext: boolean;    
+    plaintext: boolean;
 }
 
 /**
@@ -16,18 +16,11 @@ export interface ResponseContext extends Context {
  */
 export default class Response {
     /**
-     * Message envelope
-     */
-    private _envelope: Envelope;
-
-    /**
      * Initializes a new instance of the <<Response>> class.
-     * @param _robot A <<Robot>> instance.
      * @param _message A <<Message>> instance.
      * @param match A match object from the successful regex match.
      */
-    constructor(private _robot: Robot, public message: Message, public match?: RegExpMatchArray) {
-        this._envelope = this.message.toEnvelope();
+    constructor(public message: Message, public match?: RegExpMatchArray) {
     }
 
     /**
@@ -110,7 +103,7 @@ export default class Response {
      * @returns a <<ScopedClient>> instance.
      */
     public http(url: string, options?: scoped.Options): scoped.ScopedClient {
-        return this._robot.http(url, options);
+        return null; // this._robot.http(url, options);
     }
 
     /**
@@ -128,7 +121,7 @@ export default class Response {
             plaintext: opts.plaintext || false
         };
 
-        let result = await this._robot.middleware.response.execute(context);
-        this._robot.adapter[context.method](this._envelope, ...result.strings);
+        // let result = await this._robot.middleware.response.execute(context);
+        // this._robot.adapter[context.method](this.message.toEnvelope(), ...result.strings);
     }
 }

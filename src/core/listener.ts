@@ -3,6 +3,7 @@ import { Message, TextMessage } from "./message";
 import Middleware, { Context } from "./middleware";
 import Robot from "./robot";
 import Response from "./response";
+import EventBus from "./eventBus";
 
 export type Matcher = (message: Message) => any;
 export type ListenerCallback = (response: Response) => void;
@@ -15,7 +16,7 @@ export interface ListenerContext extends Context {
  * Listeners receive every message from the chat source and decide
  * if they want to act on it.
  */
-export class Listener {
+export default class Listener {
     /**
      * Regex used, if one was used
      */
@@ -25,16 +26,17 @@ export class Listener {
      * Initializes a new instance of the <<Listener>> class.
      * An identifier should be provided in the options paramter to uniquely
      * identify the listener (options.id).
-     * @param robot A robot instance
+     * @param _eventBus <<EventBus>> instance.
      * @param matcher A function that determines if this listener should trigger the
      *  callback
      * @param options An object of additional parameters keyed on extension name (optional).
      * @param callback A function that is triggered if the incoming message matches.
      */
-    constructor(_robot: Robot, _matcher: Matcher, _callback: ListenerCallback)
-    constructor(_robot: Robot, _matcher: Matcher, _options: any, _callback: ListenerCallback)
+    constructor(_logger: Log, _eventBus: EventBus, _matcher: Matcher, _callback: ListenerCallback)
+    constructor(_logger: Log, _eventBus: EventBus, _matcher: Matcher, _options: any, _callback: ListenerCallback)
     constructor(
-        private _robot: Robot,
+        private _logger: Log,
+        private _eventBus: EventBus,
         private _matcher: Matcher,
         private _options: any,
         private _callback?: ListenerCallback) {
@@ -67,53 +69,30 @@ export class Listener {
      */
     public async call(message: Message, middleware?: Middleware<ListenerContext>): Promise<boolean> {
         if (!middleware) {
-            middleware = new Middleware<ListenerContext>(this._robot);
+            // middleware = new Middleware<ListenerContext>();
         }
 
         let match = this._matcher(message);
         if (match) {
             if (this.regex) {
-                this._robot.logger.debug(
+                this._logger.debug(
                     `Message '${message}' matched regex /${inspect(this.regex)}/; listener._options = ${inspect(this._options)}`);
             }
 
             let context = await middleware.execute({
                 listener: this,
-                response: new Response(this._robot, message, match)
+                response: new Response(message, match)
             });
-            this._robot.logger.debug(`Executing listener callback for Message '${message}'`);
+            this._logger.debug(`Executing listener callback for Message '${message}'`);
             try {
                 this._callback(context.response);
+                return Promise.resolve(true);
             } catch (e) {
-                this._robot.emit("error", e, context.response);
+                this._eventBus.emit("error", e, context.response);
+                return Promise.reject<boolean>(e);
             }
-            return Promise.resolve(true);
         } else {
             return Promise.resolve(false);
         }
-    }
-}
-
-/**
- * TextListeners receive every message from the chat source and decided if they
- * want to act on it.
- */
-export class TextListener extends Listener {
-    /**
-     * Initializes a new instance of the <<TextListener>> class.
-     * @param robot A robot instance
-     * @param matcher A function that determines if this listener should trigger the
-     *  callback
-     * @param options An object of additional parameters keyed on extension name (optional).
-     * @param callback A function that is triggered if the incoming message matches.
-     */
-    constructor(robot: Robot, regex: RegExp, options: any, callback?: ListenerCallback) {
-        let matcher: Matcher = (message) => {
-            if (message instanceof TextMessage) {
-                return message.match(regex);
-            }
-        };
-        super(robot, matcher, options, callback);
-        this.regex = regex;
     }
 }

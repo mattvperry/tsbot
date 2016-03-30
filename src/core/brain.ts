@@ -1,5 +1,6 @@
-/// <reference path="..\typings\main.d.ts" />
+/// <reference path="..\..\typings\main.d.ts" />
 
+import { inject } from "inversify";
 import { EventEmitter } from "events";
 import User from "./user";
 import Robot from "./robot";
@@ -30,13 +31,11 @@ export default class Brain extends EventEmitter {
 
     /**
      * Initializes a new instance of the <<Brain>> class.
-     * @param robot The <<Robot>> instance.
      */
-    constructor(robot: Robot) {
+    constructor() {
         super();
         this._data = { users: {}, _private: {} };
         this._autoSave = true;
-        robot.on("running", () => this.resetSaveInterval(5));
     }
 
     /**

@@ -1,6 +1,8 @@
+import { inject } from "inversify";
 import Robot from "./robot";
 import Response from "./response";
-import { Listener } from "./listener";
+import EventBus from "./eventBus";
+import Listener from "./listener";
 
 export type MiddlewareFunc<T extends Context> = (context: T, next: (done: Function) => void, done: Function) => void;
 
@@ -11,6 +13,7 @@ export interface Context {
 /**
  * Middleware handler
  */
+@inject("EventBus")
 export default class Middleware<T extends Context> {
     /**
      * Middleware stack
@@ -19,9 +22,9 @@ export default class Middleware<T extends Context> {
 
     /**
      * Initializes a new instance of the <<Middleware>> class.
-     * @params _robot A <<robot>> instance.
+     * @param _eventBus <<EventBus>> instance
      */
-    constructor(private _robot: Robot) {
+    constructor(private _eventBus: EventBus) {
     }
 
     /**
@@ -80,15 +83,14 @@ export default class Middleware<T extends Context> {
                 middleware.call(undefined, context,
                     (newDoneFunc: Function = done) => {
                         resolve(newDoneFunc);
-                    }, 
+                    },
                     () => {
                         resolve(null);
                         done();
                     }
                 );
             } catch (e) {
-                // Maintaining the existing error interface (Response object)
-                this._robot.emit("error", e, context.response);
+                this._eventBus.emit("error", e, context.response);
                 reject(e);
             }
         });
