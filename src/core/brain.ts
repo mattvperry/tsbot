@@ -4,6 +4,7 @@ import { inject } from "inversify";
 import { EventEmitter } from "events";
 import User from "./user";
 import Robot from "./robot";
+import EventBus from "./eventBus";
 
 interface BrainData {
     users: { [name: string]: User };
@@ -13,6 +14,7 @@ interface BrainData {
 /**
  * Represents somewhat persistent storage for the robot.
  */
+@inject("EventBus")
 export default class Brain extends EventEmitter {
     /**
      * The brain's data
@@ -31,11 +33,13 @@ export default class Brain extends EventEmitter {
 
     /**
      * Initializes a new instance of the <<Brain>> class.
+     * @param eventBus An <<EventBus>> instance
      */
-    constructor() {
+    constructor(eventBus: EventBus) {
         super();
         this._data = { users: {}, _private: {} };
         this._autoSave = true;
+        eventBus.on("running", () => this.resetSaveInterval(5));
     }
 
     /**

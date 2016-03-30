@@ -1,7 +1,7 @@
 /// <reference path="..\..\typings\main.d.ts" />
 
 import { EventEmitter } from "events";
-import Response from "./response";
+import Response from "../response/response";
 
 /**
  * Share app-wide events with necessary classes through this bus.

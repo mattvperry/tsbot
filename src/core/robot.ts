@@ -7,16 +7,18 @@ import * as bodyParser from "body-parser";
 import * as multer from "multer";
 import * as basicAuth from "basic-auth-connect";
 import * as scoped from "scoped-http-client";
-import { inject, IFactory } from "inversify";
+import * as message from "./message";
 import { Server } from "http";
+import { inject, IFactory } from "inversify";
 import { Adapter } from "./adapter";
-import EventBus from "./eventBus";
+import { Context, MiddlewareFunc } from "../middleware/middleware";
 import Brain from "./brain";
-import Middleware, { Context, MiddlewareFunc } from "./middleware";
-import Response, { ResponseContext } from "./response";
-import Listener, { ListenerContext, Matcher, ListenerCallback } from "./listener";
-import ListenerBuilder from "./listenerBuilder";
-import { Envelope, Message, EnterMessage, LeaveMessage, TopicMessage, CatchAllMessage } from "./message";
+import EventBus from "./eventBus";
+import RobotMiddleware from "../middleware/robotMiddleware";
+import ResponseBuilder from "../response/builder";
+import ListenerBuilder from "../listener/builder";
+import Response, { ResponseContext } from "../response/response";
+import Listener, { ListenerContext, Matcher, ListenerCallback } from "../listener/listener";
 
 let DOCUMENTATION_SECTIONS = [
     "description",
@@ -30,12 +32,6 @@ let DOCUMENTATION_SECTIONS = [
     "tags",
     "urls"
 ];
-
-export interface RobotMiddleware {
-    listener: Middleware<ListenerContext>;
-    response: Middleware<ResponseContext>;
-    receive: Middleware<Context>;
-}
 
 /**
  * Interface for initial configuration of a robot
@@ -52,7 +48,9 @@ export interface Configuration {
  * Robots receive message from a chat source and dispatch them to
  * matching listeners
  */
-@inject("Configuration", "Middleware", "Brain", "Log", "EventBus", "ListenerBuilder")
+@inject("Configuration", "RobotMiddleware", "Brain", 
+        "Log", "HttpOptions", "EventBus", "IFactory<ScopedClient>", 
+        "IFactory<ResponseBuilder>", "IFactory<ListenerBuilder>")
 export default class Robot {
     /**
      * Robot's name
@@ -75,19 +73,9 @@ export default class Robot {
     public adapterName: string;
 
     /**
-     * Robot middlewares
-     */
-    public middleware: RobotMiddleware;
-
-    /**
      * HTTP Router
      */
     public router: express.Express;
-
-    /**
-     * Global scoped http client options
-     */
-    public globalHttpOptions: scoped.Options = {};
 
     /**
      * Path to adapter
@@ -115,31 +103,23 @@ export default class Robot {
     private _commands: string[] = [];
 
     /**
-     * Error handlers
-     */
-    private _errorHandlers: Function[] = [];
-
-    /**
      * Initializes a new instance of the <<Robot>> class.
      */
     constructor(
         config: Configuration,
-        middlewareFac: IFactory<Middleware<Context>>,
+        public middleware: RobotMiddleware,
         public brain: Brain,
         public logger: Log,
+        public globalHttpOptions: scoped.Options,
         private _eventBus: EventBus,
+        private _makeHttpClient: IFactory<scoped.ScopedClient>,
+        private _responseBuilder: IFactory<ResponseBuilder>,
         private _listenerBuilder: IFactory<ListenerBuilder>) {
         // Configuration slurp
         this.adapterName = config.adapter;
         this.name = config.name || "tsbot";
         this.alias = config.alias || null;
         this._adapterPath = config.adapterPath || path.join("..", "adapters");
-
-        this.middleware = {
-            listener: middlewareFac(),
-            response: middlewareFac(),
-            receive: middlewareFac()
-        }
 
         if (config.disableHttpd) {
             this._setupNullRouter();
@@ -149,8 +129,6 @@ export default class Robot {
 
         this._loadAdapter(this.adapterName);
 
-        this.on("running", () => this.brain.resetSaveInterval(5));
-        this.on("error", this._invokeErrorHandlers.bind(this));
         this._onUncaughtException = (err) => this.emit("error", err);
         process.on("uncaughtException", this._onUncaughtException);
     }
@@ -220,7 +198,7 @@ export default class Robot {
     public enter(callback: ListenerCallback): void;
     public enter(options: any, callback: ListenerCallback): void;
     public enter(options: any, callback?: ListenerCallback): void {
-        this.listen((msg) => msg instanceof EnterMessage, options, callback);
+        this.listen((msg) => msg instanceof message.EnterMessage, options, callback);
     }
 
     /**
@@ -232,7 +210,7 @@ export default class Robot {
     public leave(callback: ListenerCallback): void;
     public leave(options: any, callback: ListenerCallback): void;
     public leave(options: any, callback?: ListenerCallback): void {
-        this.listen((msg) => msg instanceof LeaveMessage, options, callback);
+        this.listen((msg) => msg instanceof message.LeaveMessage, options, callback);
     }
 
     /**
@@ -244,7 +222,7 @@ export default class Robot {
     public topic(callback: ListenerCallback): void;
     public topic(options: any, callback: ListenerCallback): void;
     public topic(options: any, callback?: ListenerCallback): void {
-        this.listen((msg) => msg instanceof TopicMessage, options, callback);
+        this.listen((msg) => msg instanceof message.TopicMessage, options, callback);
     }
 
     /**
@@ -262,10 +240,10 @@ export default class Robot {
         }
 
         this.listen(
-            (msg) => msg instanceof CatchAllMessage,
+            (msg) => msg instanceof message.CatchAllMessage,
             options,
             (msg) => {
-                msg.message = (<CatchAllMessage>msg.message).message;
+                msg.message = (<message.CatchAllMessage>msg.message).message;
                 callback(msg);
             }
         )
@@ -277,7 +255,7 @@ export default class Robot {
      * @params callback A function that is called with the error object.
      */
     public error(callback: Function): void {
-        this._errorHandlers.push(callback);
+        this.on("error", callback);
     }
 
     /**
@@ -328,9 +306,9 @@ export default class Robot {
      *  to prevent further execution
      * @returns Promise which resolves when processing is complete.
      */
-    public async receive(message: Message): Promise<void> {
+    public async receive(message: message.Message): Promise<void> {
         let context = await this.middleware.receive.execute({
-            response: new Response(message)
+            response: this._responseBuilder().withMessage(message).build()
         });
         return this._processListeners(context);
     }
@@ -414,7 +392,7 @@ export default class Robot {
      * @param envelope A object with message, room, and user details
      * @param strings One or more strings for each message to send.
      */
-    public send(envelope: Envelope, ...strings: string[]): void {
+    public send(envelope: message.Envelope, ...strings: string[]): void {
         this.adapter.send(envelope, ...strings);
     }
 
@@ -424,7 +402,7 @@ export default class Robot {
      * @param envelope A object with message, room, and user details
      * @param strings One or more strings for each message to send.
      */
-    public reply(envelope: Envelope, ...strings: string[]): void {
+    public reply(envelope: message.Envelope, ...strings: string[]): void {
         this.adapter.reply(envelope, ...strings);
     }
 
@@ -493,8 +471,7 @@ export default class Robot {
      * @returns a <<ScopedClient>> instance.
      */
     public http(url: string, options?: scoped.Options): scoped.ScopedClient {
-        return scoped.create(url, Object.assign({}, this.globalHttpOptions, options))
-            .header("User-Agent", `tsbot`);
+        return this._makeHttpClient().scope(url, options);
     }
 
     /**
@@ -612,26 +589,9 @@ export default class Robot {
             }
         }
 
-        if (!(context.response.message instanceof CatchAllMessage) && !handled) {
+        if (!(context.response.message instanceof message.CatchAllMessage) && !handled) {
             this.logger.debug("No listeners executed; falling back to catch-all");
-            await this.receive(new CatchAllMessage(context.response.message));
-        }
-    }
-
-    /**
-     * Calls and passes any registered error handlers for unhandled exceptions or
-     * user emitted error events.
-     * @param err An Error object
-     * @param res An optional <<Response>> object that generated the error
-     */
-    private _invokeErrorHandlers(err: Error, res: Response) {
-        this.logger.error(err.stack);
-        for (let handler of this._errorHandlers) {
-            try {
-                handler(err, res);
-            } catch (e) {
-                this.logger.error(`while invoking error handler: ${e}\n${e.stack}`);
-            }
+            await this.receive(new message.CatchAllMessage(context.response.message));
         }
     }
 

@@ -1,7 +1,8 @@
 import * as scoped from "scoped-http-client";
-import Robot from "./robot";
-import { Context } from "./middleware";
-import { Message, Envelope } from "./message";
+import { IFactory } from "inversify";
+import Robot from "../core/robot";
+import Middleware, { Context } from "../middleware/middleware";
+import { Message } from "../core/message";
 
 export interface ResponseContext extends Context {
     strings: string[];
@@ -17,10 +18,19 @@ export interface ResponseContext extends Context {
 export default class Response {
     /**
      * Initializes a new instance of the <<Response>> class.
+     * @param _middleware the response middleware stack
+     * @param _makeHttpClient scoped http client factory
      * @param _message A <<Message>> instance.
      * @param match A match object from the successful regex match.
      */
-    constructor(public message: Message, public match?: RegExpMatchArray) {
+    constructor(
+        private _middleware: Middleware<ResponseContext>,
+        private _makeHttpClient: IFactory<scoped.ScopedClient>,
+        public message: Message,
+        public match?: RegExpMatchArray) {
+        if (!message) {
+            throw new Error("Message parameter cannot be null or undefined.");
+        }
     }
 
     /**
@@ -103,7 +113,7 @@ export default class Response {
      * @returns a <<ScopedClient>> instance.
      */
     public http(url: string, options?: scoped.Options): scoped.ScopedClient {
-        return null; // this._robot.http(url, options);
+        return this._makeHttpClient().scope(url, options);
     }
 
     /**
@@ -121,7 +131,7 @@ export default class Response {
             plaintext: opts.plaintext || false
         };
 
-        // let result = await this._robot.middleware.response.execute(context);
-        // this._robot.adapter[context.method](this.message.toEnvelope(), ...result.strings);
+        let result = await this._middleware.execute(context);
+        // this._robot.adapter[result.method](this.message.toEnvelope(), ...result.strings);
     }
 }

@@ -1,8 +1,8 @@
 import { inject } from "inversify";
-import Robot from "./robot";
-import Response from "./response";
-import EventBus from "./eventBus";
-import Listener from "./listener";
+import Robot from "../core/robot";
+import Response from "../response/response";
+import EventBus from "../core/eventBus";
+import Listener from "../listener/listener";
 
 export type MiddlewareFunc<T extends Context> = (context: T, next: (done: Function) => void, done: Function) => void;
 

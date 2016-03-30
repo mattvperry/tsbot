@@ -1,9 +1,11 @@
 import { inspect } from "util";
-import { Message, TextMessage } from "./message";
-import Middleware, { Context } from "./middleware";
-import Robot from "./robot";
-import Response from "./response";
-import EventBus from "./eventBus";
+import { IFactory } from "inversify";
+import { Message } from "../core/message";
+import Middleware, { Context } from "../middleware/middleware";
+import Robot from "../core/robot";
+import Response from "../response/response";
+import EventBus from "../core/eventBus";
+import ResponseBuilder from "../response/builder";
 
 export type Matcher = (message: Message) => any;
 export type ListenerCallback = (response: Response) => void;
@@ -26,17 +28,18 @@ export default class Listener {
      * Initializes a new instance of the <<Listener>> class.
      * An identifier should be provided in the options paramter to uniquely
      * identify the listener (options.id).
+     * @param _logger A log instance.
      * @param _eventBus <<EventBus>> instance.
+     * @param _responseBuilder A <<ResponseBuilder>> factory.
      * @param matcher A function that determines if this listener should trigger the
      *  callback
      * @param options An object of additional parameters keyed on extension name (optional).
      * @param callback A function that is triggered if the incoming message matches.
      */
-    constructor(_logger: Log, _eventBus: EventBus, _matcher: Matcher, _callback: ListenerCallback)
-    constructor(_logger: Log, _eventBus: EventBus, _matcher: Matcher, _options: any, _callback: ListenerCallback)
     constructor(
         private _logger: Log,
         private _eventBus: EventBus,
+        private _responseBuilder: IFactory<ResponseBuilder>,
         private _matcher: Matcher,
         private _options: any,
         private _callback?: ListenerCallback) {
@@ -68,20 +71,22 @@ export default class Listener {
      * @param middleware Optional <<Middleware>> object to execute before the <<Listener>> callback
      */
     public async call(message: Message, middleware?: Middleware<ListenerContext>): Promise<boolean> {
-        if (!middleware) {
-            // middleware = new Middleware<ListenerContext>();
-        }
-
         let match = this._matcher(message);
         if (match) {
             if (this.regex) {
                 this._logger.debug(
-                    `Message '${message}' matched regex /${inspect(this.regex)}/; listener._options = ${inspect(this._options)}`);
+                    `Message '${message}' matched regex /${inspect(this.regex)}/\n` +
+                    `listener._options = ${inspect(this._options)}`);
             }
 
-            let context = await middleware.execute({
+            let execute: typeof middleware.execute = middleware ? 
+                middleware.execute.bind(middleware) : (context) => Promise.resolve(context);
+            let context = await execute({
                 listener: this,
-                response: new Response(message, match)
+                response: this._responseBuilder()
+                    .withMessage(message)
+                    .withMatch(match)
+                    .build()
             });
             this._logger.debug(`Executing listener callback for Message '${message}'`);
             try {

@@ -1,12 +1,13 @@
-import { inject } from "inversify";
-import EventBus from "./eventbus";
+import { inject, IFactory } from "inversify";
+import EventBus from "../core/eventbus";
 import Listener, { Matcher, ListenerCallback } from "./listener";
-import { TextMessage } from "./message";
+import { TextMessage } from "../core/message";
+import ResponseBuilder from "../response/builder";
 
 /**
  * Class which can fluently build a listener
  */
-@inject("Log", "EventBus")
+@inject("Log", "EventBus", "IFactory<ResponseBuilder>")
 export default class ListenerBuilder {
     /**
      * The matcher to use when building a listener
@@ -32,8 +33,12 @@ export default class ListenerBuilder {
      * Initlializes a new instance of the <<ListenerBuilder>> class.
      * @param _logger A <<Log>> instance.
      * @param _eventBus A <<EventBus>> instance.
+     * @param _responseBuilder A <<ResponseBuilder>> factory.
      */
-    constructor(private _logger: Log, private _eventBus: EventBus) {
+    constructor(
+        private _logger: Log, 
+        private _eventBus: EventBus,
+        private _responseBuilder: IFactory<ResponseBuilder>) {
     }
 
     /**
@@ -88,6 +93,7 @@ export default class ListenerBuilder {
         let listener = new Listener(
             this._logger,
             this._eventBus,
+            this._responseBuilder,
             this._matcher,
             this._options,
             this._callback);

@@ -3,8 +3,8 @@ import User from "./core/user";
 import Brain from "./core/brain";
 import Robot from "./core/robot";
 import { Adapter } from "./core/adapter";
-import Response from "./core/response";
-import ListenerBuilder from "./core/listenerBuilder";
+import Response from "./response/response";
+import ListenerBuilder from "./listener/builder";
 import { Message, TextMessage, EnterMessage, LeaveMessage, TopicMessage, CatchAllMessage, Envelope } from "./core/message";
 
 export {
