@@ -2,21 +2,22 @@
 
 import * as fs from "mz/fs";
 import * as path from "path";
-import * as express from "express";
-import * as bodyParser from "body-parser";
-import * as multer from "multer";
-import * as basicAuth from "basic-auth-connect";
 import * as scoped from "scoped-http-client";
 import * as message from "./message";
-import { Server } from "http";
+import { Express } from "express";
 import { inject, IFactory } from "inversify";
 import { Adapter } from "./adapter";
+import { Configuration } from "./configuration";
+import { RobotModule } from "../loaders/scriptLoader";
 import { Context, MiddlewareFunc } from "../middleware/middleware";
 import Brain from "./brain";
 import EventBus from "./eventBus";
+import RouterFactory from "./routerFactory";
+import AdapterLoader from "../loaders/adapterLoader";
 import RobotMiddleware from "../middleware/robotMiddleware";
 import ResponseBuilder from "../response/builder";
 import ListenerBuilder from "../listener/builder";
+import DynamicLoader from "../loaders/dynamicLoader";
 import Response, { ResponseContext } from "../response/response";
 import Listener, { ListenerContext, Matcher, ListenerCallback } from "../listener/listener";
 
@@ -34,24 +35,13 @@ let DOCUMENTATION_SECTIONS = [
 ];
 
 /**
- * Interface for initial configuration of a robot
- */
-export interface Configuration {
-    adapterPath?: string;
-    adapter: string;
-    disableHttpd: boolean;
-    alias: string;
-    name: string;
-}
-
-/**
  * Robots receive message from a chat source and dispatch them to
  * matching listeners
  */
-@inject("Configuration", "RobotMiddleware", "Brain", 
-        "Log", "HttpOptions", "EventBus", "IFactory<ScopedClient>", 
+@inject("Configuration", "RouterFactory", "AdapterLoader", "RobotMiddleware",
+        "Brain", "Log", "HttpOptions", "EventBus", "IFactory<ScopedClient>",
         "IFactory<ResponseBuilder>", "IFactory<ListenerBuilder>")
-export default class Robot {
+export default class Robot extends DynamicLoader<RobotModule> {
     /**
      * Robot's name
      */
@@ -75,17 +65,7 @@ export default class Robot {
     /**
      * HTTP Router
      */
-    public router: express.Express;
-
-    /**
-     * Path to adapter
-     */
-    private _adapterPath: string;
-
-    /**
-     * HTTP Server
-     */
-    private _server: Server;
+    public router: Express;
 
     /**
      * Uncaught exception handler
@@ -107,6 +87,8 @@ export default class Robot {
      */
     constructor(
         config: Configuration,
+        routerFactory: RouterFactory,
+        adapterLoader: AdapterLoader,
         public middleware: RobotMiddleware,
         public brain: Brain,
         public logger: Log,
@@ -115,22 +97,17 @@ export default class Robot {
         private _makeHttpClient: IFactory<scoped.ScopedClient>,
         private _responseBuilder: IFactory<ResponseBuilder>,
         private _listenerBuilder: IFactory<ListenerBuilder>) {
-        // Configuration slurp
+        super(logger);
         this.adapterName = config.adapter;
         this.name = config.name || "tsbot";
         this.alias = config.alias || null;
-        this._adapterPath = config.adapterPath || path.join("..", "adapters");
-
-        if (config.disableHttpd) {
-            this._setupNullRouter();
-        } else {
-            this._setupExpress();
-        }
-
-        this._loadAdapter(this.adapterName);
-
+        this.router = routerFactory.makeRouter();
         this._onUncaughtException = (err) => this.emit("error", err);
         process.on("uncaughtException", this._onUncaughtException);
+
+        adapterLoader.loadAdapter().then(mod => {
+            this.adapter = mod.use(this);
+        });
     }
 
     /**
@@ -246,7 +223,7 @@ export default class Robot {
                 msg.message = (<message.CatchAllMessage>msg.message).message;
                 callback(msg);
             }
-        )
+        );
     }
 
     /**
@@ -311,79 +288,6 @@ export default class Robot {
             response: this._responseBuilder().withMessage(message).build()
         });
         return this._processListeners(context);
-    }
-
-    /**
-     * Loads a file in path.
-     * @param filePath A string path on the filesystem.
-     * @param fileName A string filename in path on the filesystem.
-     */
-    public async loadFile(filePath: string, fileName: string): Promise<void> {
-        let ext = path.extname(fileName);
-        let full = path.join(filePath, path.basename(fileName, ext));
-        if (require.extensions[ext]) {
-            try {
-                let script = require(full);
-                if (typeof script === "function") {
-                    script(this);
-                    await this._parseHelp(path.join(filePath, fileName));
-                } else {
-                    this.logger.warn(`Expected ${full} to assign a function to module.exports, got ${typeof script}`);
-                }
-            } catch(e) {
-                this.logger.error(`Unable to load ${full}: ${e.stack}`);
-                process.exit(1);
-            }
-        }
-    }
-
-    /**
-     * Loads every script in the given path.
-     * @param filePath A string path on the filesystem.
-     */
-    public async load(filePath: string): Promise<void> {
-        this.logger.debug(`Loading scripts from ${filePath}`);
-        if (await fs.exists(filePath)) {
-            let files = await fs.readdir(filePath);
-            for (let file of files.sort()) {
-                await this.loadFile(filePath, file);
-            }
-        }
-    }
-
-    /**
-     * Load script specified in the `hubot-scripts.json` file.
-     * @param filePath A string path to the hubot-scripts files.
-     * @param scripts An array of scripts to load.
-     */
-    public async loadHubotScripts(filePath: string, scripts: string[]): Promise<void> {
-        this.logger.debug(`Loading hubot-scripts from ${filePath}`);
-        for (let script of scripts) {
-            await this.loadFile(filePath, script);
-        }
-    }
-
-    /**
-     * Load scripts from packages specified in the `external-scripts.json` file.
-     * @param packages An array of packages containing hubot scripts to load.
-     */
-    public loadExternalScripts(packages: string[]|Object): Promise<void> {
-        this.logger.debug("Loading external-scripts from npm packages");
-        try {
-            if (packages instanceof Array) {
-                for (let pkg of packages) {
-                    require(pkg)(this);
-                }
-            } else {
-                Object.keys(packages).map((k) => {
-                    return { name: k, scripts: packages[k] };
-                }).forEach((pkg) => require(pkg.name)(this, pkg.scripts));
-            }
-            return Promise.resolve();
-        } catch (e) {
-            this.logger.error(`Error loading scripts from npm package - ${e.stack}`);
-            return Promise.reject(e);
-        }
     }
 
     /**
@@ -475,73 +379,60 @@ export default class Robot {
     }
 
     /**
-     * Setup the Express server's defaults
-     */
-    private _setupExpress(): void {
-        let user = process.env.EXPRESS_USER;
-        let pass = process.env.EXPRESS_PASSWORD;
-        let stat = process.env.EXPRESS_STATIC;
-        let port = process.env.EXPRESS_PORT || process.env.PORT || 8080;
-        let address = process.env.EXPRESS_BIND_ADDRESS || process.env.BIND_ADDRESS || "0.0.0.0";
-
-        // Setup express middleware
-        let app = express();
-        app.use((req: express.Request, res: express.Response, next: express.NextFunction) => {
-            res.setHeader("X-Powered-By", `tsbot/${this.name}`);
-            next();
-        });
-        if (user && pass) {
-            app.use(basicAuth(user, pass));
-        }
-        if (stat) {
-            app.use(express.static);
-        }
-        app.use(bodyParser.json());
-        app.use(bodyParser.urlencoded({ extended: true }));
-        app.use(multer({ limits: {
-            fileSize: 100 * 1024 * 1024
-        }}).any());
-
-        try {
-            this._server = app.listen(port, address);
-            this.router = app;
-        } catch (e) {
-            this.logger.error(`Error trying to start HTTP server: ${e}\n${e.stack}`);
-            process.exit(1);
-        }
+    * Loads a file in path.
+    * @param filePath A string path on the filesystem.
+    * @param fileName A string filename in path on the filesystem.
+    */
+    public async loadFile(filePath: string, fileName: string): Promise<void> {
+        let mod = await this._loadFile(path.join(filePath, fileName));
+        return this.loadModules(mod);
     }
 
     /**
-     * Setup an empty router object
+     * Loads every script in the given path.
+     * @param filePath A string path on the filesystem.
      */
-    private _setupNullRouter(): void {
-        let msg = `A script has tried registering an HTTP route while the HTTP server is disabled with -d.`;
-        this.router = <any>{
-            get: () => this.logger.warn(msg),
-            post: () => this.logger.warn(msg),
-            put: () => this.logger.warn(msg),
-            delete: () => this.logger.warn(msg)
-        };
+    public async load(filePath: string): Promise<void> {
+        let mods = await this._loadDir(filePath);
+        return this.loadModules(...mods);
     }
 
     /**
-     * Load the adapter tsbot is going to use.
-     * @param adapterName A string of the adapter name to use.
+     * Load script specified in the `hubot-scripts.json` file.
+     * @param filePath A string path to the hubot-scripts files.
+     * @param scripts An array of scripts to load.
      */
-    private _loadAdapter(adapterName: string): void {
-        this.logger.debug(`Loading adapter ${adapterName}`);
-        try {
-            let path: string;
-            if (adapterName === "shell") {
-                path = `${this._adapterPath}/${adapterName}`;
-            } else {
-                path = `hubot-${adapterName}`;
+    public async loadHubotScripts(filePath: string, scripts: string[]): Promise<void> {
+        this.logger.debug(`Loading hubot-scripts from ${filePath}`);
+        let mods = await Promise.all(scripts.map((s) => this._loadFile(path.join(filePath, s))));
+        return this.loadModules(...mods);
+    }
+
+    /**
+     * Load scripts from packages specified in the `external-scripts.json` file.
+     * @param packages An array of packages containing hubot scripts to load.
+     */
+    public async loadExternalScripts(packages: string[]): Promise<void> {
+        this.logger.debug("Loading external-scripts from npm packages");
+        let mods = await Promise.all(packages.map(p => this._load(p)));
+        return this.loadModules(...mods);
+    }
+
+    /**
+     * Load the given modules into the robot
+     * @param modules list of <<RobotModule>> objects to load.
+     */
+    public loadModules(...modules: RobotModule[]): Promise<void> {
+        return new Promise<void>((resolve, reject) => {
+            try {
+                for (const mod of modules) {
+                    mod(this);
+                }
+                resolve();
+            } catch (e) {
+                reject(e);
             }
-            this.adapter = require(path).use(this);
-        } catch (e) {
-            this.logger.error(`Cannot load adapter ${adapterName} - ${e}`);
-            process.exit(1);
-        }
+        });
     }
 
     /**
@@ -625,7 +516,7 @@ export default class Robot {
             newRegex = new RegExp(
                 `^\\s*[@]?${name}[:,]?\\s*(?:${pattern})`,
                 modifiers
-            )
+            );
         }
         return newRegex;
     }

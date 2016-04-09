@@ -29,7 +29,8 @@ export function loadBot(adapterPath: string, adapterName: string, enableHttpd: b
         adapter: adapterName,
         disableHttpd: !enableHttpd,
         name: botName,
-        alias: botAlias
+        alias: botAlias,
+        require: []
     });
     return kernel.get<Robot>("Robot");
 }

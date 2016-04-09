@@ -4,10 +4,11 @@ import * as argv from "yargs";
 import * as fs from "mz/fs";
 import * as path from "path";
 import Registrar from "./registrar";
-import Robot, { Configuration } from "./core/robot";
+import Robot from "./core/robot";
+import ScriptLoader from "./loaders/scriptLoader";
+import { Configuration } from "./core/configuration";
 
 interface CommandLineArgs extends Configuration {
-    require: string[];
     configCheck: boolean;
 }
 
@@ -57,45 +58,18 @@ function parseArgs(): CommandLineArgs {
     .argv;
 }
 
-async function loadOtherScripts(fileName: string, loader: (scripts: string[]) => Promise<void>): Promise<void> {
-    let scriptsFile = path.resolve(".", fileName);
-    if (await fs.exists(scriptsFile)) {
-        let data = await fs.readFile(scriptsFile);
-        if (data.length > 0) {
-            try {
-                await loader(JSON.parse(data.toString()));
-            } catch (e) {
-                console.error(`Error parsing JSON data from ${fileName}: ${e}`);
-                process.exit(1);
-            }
-        }
-    }
-}
-
-async function loadScripts(options: CommandLineArgs, robot: Robot): Promise<void> {
-    await loadOtherScripts("hubot-scripts.json", async (scripts) => {
-        let loadPath = path.resolve("node_modules", "hubot-scripts", "src", "scripts");
-        await robot.loadHubotScripts(loadPath, scripts);
-    });
-
-    await loadOtherScripts("external-scripts.json", robot.loadExternalScripts.bind(robot));
-
-    let scripts = options.require.concat([path.resolve(".", "scripts"), path.resolve(".", "src", "scripts")]);
-    for (let scriptPath of scripts) {
-        let scriptsPath = scriptPath[0] === "/" ? scriptPath : path.resolve(".", scriptPath);
-        await robot.load(scriptsPath);
-    }
-}
-
 let options = parseArgs();
 let kernel = Registrar.register(options);
 let robot = kernel.get<Robot>("Robot");
+let loader = kernel.get<ScriptLoader>("ScriptLoader");
 
-if (options.configCheck) {
-    loadScripts(options, robot)
-        .then(() => console.log("OK"))
-        .then(() => process.exit(0));
-} else {
-    robot.adapter.once("connected", () => loadScripts(options, robot));
-    robot.run();
-}
+loader.getModules().then(async (mods) => {
+    if (options.configCheck) {
+        await robot.loadModules(...mods);
+        console.log("OK");
+        process.exit(0);
+    } else {
+        robot.adapter.once("connected", () => robot.loadModules(...mods));
+        robot.run();
+    }
+});
