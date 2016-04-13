@@ -8,7 +8,7 @@
     "multer": "registry:dt/multer#0.0.0+20160317120654",
     "mz": "registry:dt/mz#0.0.0+20160217153523",
     "node": "registry:dt/node#4.0.0+20160319033040",
-    "scoped-http-client": "github:mattvperry/typed-scoped-http-client#8c5b7cf",
+    "scoped-http-client": "github:mattvperry/typed-scoped-http-client#ddd8c87",
     "serve-static": "registry:dt/serve-static#0.0.0+20160317120654",
     "yargs": "registry:dt/yargs#0.0.0+20160317120654"
   },
