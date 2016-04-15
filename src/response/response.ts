@@ -48,7 +48,7 @@ export default class Response {
      *  should be kept intact.
      */
     public emote(...strings: string[]): Promise<void> {
-        return this._runWithMiddleware("send", { plaintext: true }, ...strings);
+        return this._runWithMiddleware("emote", { plaintext: true }, ...strings);
     }
 
     /**
@@ -57,7 +57,7 @@ export default class Response {
      *  should be kept intact.
      */
     public reply(...strings: string[]): Promise<void> {
-        return this._runWithMiddleware("send", { plaintext: true }, ...strings);
+        return this._runWithMiddleware("reply", { plaintext: true }, ...strings);
     }
 
     /**
@@ -66,7 +66,7 @@ export default class Response {
      *  room the bot is in.
      */
     public topic(...strings: string[]): Promise<void> {
-        return this._runWithMiddleware("send", { plaintext: true }, ...strings);
+        return this._runWithMiddleware("topic", { plaintext: true }, ...strings);
     }
 
     /**
@@ -75,7 +75,7 @@ export default class Response {
      *  order of these strings should be kept intact.
      */
     public play(...strings: string[]): Promise<void> {
-        return this._runWithMiddleware("send", { plaintext: true }, ...strings);
+        return this._runWithMiddleware("play", { plaintext: true }, ...strings);
     }
 
     /**
@@ -84,7 +84,7 @@ export default class Response {
      *  should be kept intact.
      */
     public locked(...strings: string[]): Promise<void> {
-        return this._runWithMiddleware("send", { plaintext: true }, ...strings);
+        return this._runWithMiddleware("locked", { plaintext: true }, ...strings);
     }
 
     /**
